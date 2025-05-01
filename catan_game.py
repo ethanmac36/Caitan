@@ -19,9 +19,9 @@ class Player:
         self.id = player_id
 
         self.resources = {"brick" : 0, "lumber" : 0, "ore" : 0, "grain" : 0, "wool" : 0}
-        self.roadSpots = []
-        self.settlementSpots = []
-        self.citySpots = []
+        self.roadSpots = set()
+        self.settlementSpots = set()
+        self.citySpots = set()
 
         self.victory_points = 0
         # self.buildings = {bt: 0 for bt in BuildingType}
@@ -768,31 +768,55 @@ class CatanGame:
         for _ in range(2):
             for p in self.players:
                 player = self.players[p.id]
+
+                # pick a random board spot
                 num = random.randint(1, 54)
                 while(board[f's{num}'].blocked == True):
                     num = random.randint(1, 54)
-                player.citySpots.append(num)
+
+                # add the new spot to the cities list
+                player.citySpots.add(num)
+
+                # update the board
                 board[f's{num}'].hasSettlement = True
-                board[f's{num}'].controller = p.id
+                board[f's{num}'].controller = player.id
                 board[f's{num}'].blocked = True
+                for p in self.players:
+                    p.settlementSpots.discard(num)
                 for adj in board[f's{num}'].adjSettlements:
                     board[f's{adj}'].blocked = True
-                newRoadSpots = []
+                    for p in self.players:
+                        p.settlementSpots.discard(adj)
+                
+                # find the new roads from this settlement spot
+                newRoadSpots = set()
                 for adj in board[f's{num}'].adjRoads:
                     if board[f'r{adj}'].hasRoad == False:
-                        newRoadSpots.append(adj)
-                rSpot = random.choice(newRoadSpots)
+                        newRoadSpots.add(adj)
+
+                # place a road from among them
+                rSpot = random.choice(list(newRoadSpots))
                 board[f'r{rSpot}'].hasRoad = True
-                board[f'r{rSpot}'].controller = p.id
+                board[f'r{rSpot}'].controller = player.id
+                for p in self.players:
+                    p.roadSpots.discard(rSpot)
                 for adj in board[f'r{rSpot}'].adjRoads:
                     if board[f'r{adj}'].hasRoad == False:
-                        newRoadSpots.append(adj)
-                # newRoadSpots.remove(rSpot)
-                newRoadSpots = [x for x in newRoadSpots if x != rSpot]
-                print(newRoadSpots)
-                player.roadSpots += list(set(newRoadSpots))
+                        newRoadSpots.add(adj)
+                newRoadSpots.discard(rSpot)
+
+                # update the players road list
+                player.roadSpots.update(newRoadSpots)
+
                 # Award victory point
                 player.victory_points += 1
+        printBoard(board)
+        for p in self.players:
+            print(f"player {p.id} resources", p.resources)
+            print(f"player {p.id} road spots", p.roadSpots)
+            print(f"player {p.id} settle spots", p.settlementSpots)
+            print(f"player {p.id} city spots", p.citySpots)
+            print("")
         return board
 
     def roll_dice(self):
@@ -823,41 +847,37 @@ class CatanGame:
         """Check if a player can build a settlement."""
         player = self.players[player_id]
         # print(player.settlementSpots)
-        return (player.settlementSpots != [] and
+        return (len(player.settlementSpots) != 0 and
                 player.resources["brick"] >= 1 and
                 player.resources["lumber"] >= 1 and
                 player.resources["grain"] >= 1 and
                 player.resources["wool"] >= 1)
     
-    def build_settlement(self, player_id, position):
+    def build_settlement(self, player_id):
         """Build a settlement at the given position."""
         if not self.can_build_settlement(player_id):
             return False
-        
         player = self.players[player_id]
+
+        # spend resources
         player.resources["brick"] -= 1
         player.resources["lumber"] -= 1
         player.resources["grain"] -= 1
         player.resources["wool"] -= 1
         
-        # player.buildings[BuildingType.SETTLEMENT] += 1
-        # self.board[position].settlements.append(player_id)
-        spot = random.choice(player.settlementSpots)
-        # player.settlementSpots.remove(spot)
-        player.settlementSpots = [x for x in player.settlementSpots if x != spot]
-        player.citySpots.append(spot)
+        # pick a random spot and place it
+        spot = random.choice(list(player.settlementSpots))
+        player.settlementSpots.discard(spot)
+        player.citySpots.add(spot)
         for p in self.players:
-            # p.settlementSpots.remove(spot)
-            p.settlementSpots = [x for x in p.settlementSpots if x != spot]
+            p.settlementSpots.discard(spot)
         self.board[f's{spot}'].hasSettlement = True
         self.board[f's{spot}'].controller = player_id
         self.board[f's{spot}'].blocked = True
         for adj in self.board[f's{spot}'].adjSettlements:
+            self.board[f's{adj}'].blocked = True
             for p in self.players:
-                # p.settlementSpots.remove(adj)
-                p.settlementSpots = [x for x in p.settlementSpots if x != adj]
-            if self.board[f's{adj}'].hasSettlement == False and self.board[f's{adj}'].hasCity == False:
-                self.board[f's{adj}'].blocked == True
+                p.settlementSpots.discard(adj)
         
         # Award victory point
         player.victory_points += 1
@@ -872,7 +892,7 @@ class CatanGame:
     def can_build_city(self, player_id):
         """Check if a player can build a city."""
         player = self.players[player_id]
-        return (player.citySpots != [] and
+        return (len(player.citySpots) != 0 and
                 player.resources["grain"] >= 2 and
                 player.resources["ore"] >= 3)
     
@@ -885,11 +905,8 @@ class CatanGame:
         player.resources["grain"] -= 2
         player.resources["ore"] -= 3
         
-        # player.buildings[BuildingType.SETTLEMENT] -= 1
-        # player.buildings[BuildingType.CITY] += 1
-        spot = random.choice(player.citySpots)
-        # player.citySpots.remove(spot)
-        player.citySpots = [x for x in player.citySpots if x != spot]
+        spot = random.choice(list(player.citySpots))
+        player.citySpots.discard(spot)
         self.board[f's{spot}'].hasCity = True
         self.board[f's{spot}'].hasSettlement = False
         
@@ -906,7 +923,7 @@ class CatanGame:
     def can_build_road(self, player_id):
         """Check if a player can build a road."""
         player = self.players[player_id]
-        return (player.roadSpots != [] and
+        return (len(player.roadSpots) != 0 and
                 player.resources["brick"] >= 1 and
                 player.resources["lumber"] >= 1)
     
@@ -919,21 +936,19 @@ class CatanGame:
         player.resources["brick"] -= 1
         player.resources["lumber"] -= 1
         
-        # player.buildings[BuildingType.ROAD] += 1
-        spot = random.choice(player.roadSpots)
-        # player.roadSpots.remove(spot)
-        player.roadSpots = [x for x in player.roadSpots if x != spot]
+        spot = random.choice(list(player.roadSpots))
+        player.roadSpots.discard(spot)
         for p in self.players:
-            # p.roadSpots.remove(spot)
-            p.roadSpots = [x for x in p.roadSpots if x != spot]
+            p.roadSpots.discard(spot)
+        
         self.board[f'r{spot}'].hasRoad = True
         self.board[f'r{spot}'].controller = player_id
         for adj in self.board[f'r{spot}'].adjRoads:
             if self.board[f'r{adj}'].hasRoad == False:
-                player.roadSpots.append(spot)
+                player.roadSpots.add(adj)
         for adj in self.board[f'r{spot}'].adjSettlements:
             if self.board[f's{adj}'].blocked == False:
-                player.settlementSpots.append(adj)
+                player.settlementSpots.add(adj)
 
     def can_port(self, player_id):
         player = self.players[player_id]
@@ -1000,7 +1015,6 @@ class CatanGame:
     #     return True
     
     def play_turn(self, player_id):
-        printBoard(self.board)
         """Play a turn for the given player."""
         if self.game_over:
             return
@@ -1056,14 +1070,15 @@ class CatanGame:
         
         # Move to next player
         if self.turn_number % 1 == 0:
-            print("player 0 resources: ", self.players[0].resources)
-            print("player 1 resources: ", self.players[1].resources)
-            print("player 2 resources: ", self.players[2].resources)
-            print("player 3 resources: ", self.players[3].resources)
-            # print(self.players[0].settlementSpots)
-            # print(self.players[0].roadSpots)
-            # print(self.players[0].citySpots)
-            time.sleep(3)
+            printBoard(self.board)
+            for p in self.players:
+                print(f"player {p.id} resources", p.resources)
+                print(f"player {p.id} road spots", p.roadSpots)
+                print(f"player {p.id} settle spots", p.settlementSpots)
+                print(f"player {p.id} city spots", p.citySpots)
+                print(f"player {p.id} victory points", p.victory_points)
+                print("")
+            # time.sleep(3)
         self.current_player = (self.current_player + 1) % self.num_players
         self.turn_number += 1
     
