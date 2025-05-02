@@ -940,7 +940,6 @@ class CatanGame:
         return True
     
     def compute_longest_road(self, player_id):
-        from collections import defaultdict
 
         max_length = 0
 
@@ -1025,11 +1024,11 @@ class CatanGame:
 
     def can_port(self, player_id):
         player = self.players[player_id]
-        return (player.resources["brick"] >= 4 or
-                player.resources["lumber"] >= 4 or
-                player.resources["ore"] >= 4 or
-                player.resources["grain"] >= 4 or
-                player.resources["wool"] >= 4)
+        return (player.resources["brick"] >= 2 or
+                player.resources["lumber"] >= 2 or
+                player.resources["ore"] >= 2 or
+                player.resources["grain"] >= 2 or
+                player.resources["wool"] >= 2)
     
     def port(self, player_id):
         if not self.can_port(player_id):
@@ -1037,13 +1036,13 @@ class CatanGame:
         player = self.players[player_id]
         portables = []
         for resource, count in player.resources.items():
-            if count >= 4:
+            if count >= 2:
                 portables.append(resource)
         choice = random.choice(portables)
         resourceList = ["lumber", "brick", "ore", "grain", "wool"]
         resourceList.remove(choice)
         reception = random.choice(resourceList)
-        player.resources[choice] -= 4
+        player.resources[choice] -= 2
         player.resources[reception] += 1
 
         return True
