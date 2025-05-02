@@ -25,6 +25,8 @@ class Player:
         self.citySpots = set()
 
         self.victory_points = 0
+        self.downDevs = {"knight" : 0, "victoryPoint" : 0, "roadBuilding" : 0, "yearOfPlenty" : 0, "monopoly" : 0}
+        self.upDevs = {"knight" : 0, "victoryPoint" : 0, "roadBuilding" : 0, "yearOfPlenty" : 0, "monopoly" : 0}
         # self.buildings = {bt: 0 for bt in BuildingType}
         # self.dev_cards = []
         # self.longest_road = False
@@ -765,6 +767,17 @@ class CatanGame:
         for i in range(1, 55):
             board[f"s{i}"] = SettlementSpace(settlementFindAdjSettlements(i), settlementFindAdjRoads(i))
 
+        # create the dev card stack
+        devStack = (
+            ["knight"] * 14 +
+            ["victoryPoint"] * 5 +
+            ["roadBuilding"] * 2 +
+            ["yearOfPlenty"] * 2 +
+            ["monopoly"] * 2
+        )
+        random.shuffle(devStack)
+        board["devStack"] = devStack
+
         # place initial settlements
         for _ in range(2):
             for p in self.players:
@@ -986,36 +999,106 @@ class CatanGame:
         
         return True
     
-    # def can_buy_dev_card(self, player_id):
-    #     """Check if a player can buy a development card."""
-    #     player = self.players[player_id]
-    #     return (player.resources[ResourceType.ORE] >= 1 and
-    #             player.resources[ResourceType.GRAIN] >= 1 and
-    #             player.resources[ResourceType.WOOL] >= 1)
+    def can_buy_dev_card(self, player_id):
+        # Check if a player can buy a development card
+        player = self.players[player_id]
+        return (len(self.board["devStack"]) != 0 and
+                player.resources["ore"] >= 1 and
+                player.resources["grain"] >= 1 and
+                player.resources["wool"] >= 1)
     
-    # def buy_dev_card(self, player_id):
-    #     """Buy a development card."""
-    #     if not self.can_buy_dev_card(player_id):
-    #         return False
+    def buy_dev_card(self, player_id):
+        # Buy a development card
+        if not self.can_buy_dev_card(player_id):
+            return False
         
-    #     player = self.players[player_id]
-    #     player.resources[ResourceType.ORE] -= 1
-    #     player.resources[ResourceType.GRAIN] -= 1
-    #     player.resources[ResourceType.WOOL] -= 1
+        player = self.players[player_id]
+        player.resources["ore"] -= 1
+        player.resources["grain"] -= 1
+        player.resources["wool"] -= 1
         
-    #     # Randomly select a development card
-    #     card_types = ["knight", "road_building", "year_of_plenty", "monopoly", "victory_point"]
-    #     card = random.choice(card_types)
-    #     player.dev_cards.append(card)
+        # Randomly select a development card
+        card = self.board["devStack"].pop()
+        if card == "victoryPoint":
+            player.victory_points += 1
+            player.upDevs["victoryPoint"] += 1
+            if player.victory_points >= 10:
+                self.game_over = True
+                self.winner = player_id
+        else:
+            player.downDevs[card] += 1
         
-    #     # Victory point cards give immediate points
-    #     if card == "victory_point":
-    #         player.victory_points += 1
-    #         if player.victory_points >= 10:
-    #             self.game_over = True
-    #             self.winner = player_id
+        return True
+    
+    def can_play_dev_card(self, player_id):
+        # Check if a player can buy a development card
+        player = self.players[player_id]
+        return (player.downDevs["knight"] > 0 or 
+                player.downDevs["roadBuilding"] > 0 or
+                player.downDevs["yearOfPlenty"] > 0 or
+                player.downDevs["monopoly"] > 0)
+    
+    def play_dev_card(self, player_id):
+        # Play a development card
+        if not self.can_play_dev_card(player_id):
+            return False
+        player = self.players[player_id]
         
-    #     return True
+        availableCards = []
+        for key, value in player.downDevs.items():
+            if key == "victoryPoint":
+                continue
+            availableCards += [key] * value
+        card = random.choice(availableCards)
+
+        if card == "knight":
+            player.upDevs["knight"] += 1
+            player.downDevs["knight"] -= 1
+            opponents = [i for i in range(4) if i != player_id]
+            target = self.players[random.choice(opponents)]
+            nonzero_resources = [resource for resource, count in target.resources.items() if count > 0]
+            if nonzero_resources == []:
+                return True
+            stealType = random.choice(nonzero_resources)
+            target.resources[stealType] -= 1
+            player.resources[stealType] += 1
+
+        elif card == "roadBuilding":
+            player.upDevs["roadBuilding"] += 1
+            player.downDevs["roadBuilding"] -= 1
+            if not self.can_build_road(player_id):
+                return True
+            player.resources["lumber"] += 1
+            player.resources["brick"] += 1
+            self.build_road(player_id)
+            if not self.can_build_road(player_id):
+                return True
+            player.resources["lumber"] += 1
+            player.resources["brick"] += 1
+            self.build_road(player_id)
+
+        elif card == "yearOfPlenty":
+            player.upDevs["yearOfPlenty"] += 1
+            player.downDevs["yearOfPlenty"] -= 1
+            possible = [resource for resource, _ in player.resources.items()]
+            resourceOne = random.choice(possible)
+            resourceTwo = random.choice(possible)
+            player.resources[resourceOne] += 1
+            player.resources[resourceTwo] += 1
+
+        elif card == "monopoly":
+            player.upDevs["monopoly"] += 1
+            player.downDevs["monopoly"] -= 1
+            possible = [resource for resource, _ in player.resources.items()]
+            steal = random.choice(possible)
+            opponents = [i for i in range(4) if i != player_id]
+            for op in opponents:
+                opp = self.players[op]
+                temp = opp.resources[steal]
+                opp.resources[steal] = 0
+                player.resources[steal] += temp
+
+        return True
     
     def play_turn(self, player_id):
         """Play a turn for the given player."""
@@ -1038,6 +1121,10 @@ class CatanGame:
             actions.append("road")
         if self.can_port(player_id):
             actions.append("port")
+        if self.can_buy_dev_card:
+            actions.append("buyDev")
+        if self.can_play_dev_card:
+            actions.append("playDev")
 
         action = random.choice(actions)
         # print(f"player {player_id} chose to {action}!")
@@ -1067,21 +1154,30 @@ class CatanGame:
 
         elif action == "port" and self.can_port(player_id):
             self.port(player_id)
+
+        elif action == "buyDev" and self.can_buy_dev_card:
+            self.buy_dev_card(player_id)
+
+        elif action == "playDev" and self.can_play_dev_card:
+            self.play_dev_card(player_id)
+
         
         # elif action == "dev_card" and self.can_buy_dev_card(player_id):
         #     self.buy_dev_card(player_id)
         
         # Move to next player
         # if self.turn_number % 1 == 0:
-        #     printBoard(self.board)
-        #     for p in self.players:
-        #         print(f"player {p.id} resources", p.resources)
-        #         print(f"player {p.id} legacy resources", p.legacyResources)
-        #         print(f"player {p.id} road spots", p.roadSpots)
-        #         print(f"player {p.id} settle spots", p.settlementSpots)
-        #         print(f"player {p.id} city spots", p.citySpots)
-        #         print(f"player {p.id} victory points", p.victory_points)
-        #         print("")
+            # printBoard(self.board)
+            # for p in self.players:
+            #     print(f"player {p.id} resources", p.resources)
+            #     print(f"player {p.id} legacy resources", p.legacyResources)
+            #     print(f"player {p.id} road spots", p.roadSpots)
+            #     print(f"player {p.id} settle spots", p.settlementSpots)
+            #     print(f"player {p.id} city spots", p.citySpots)
+            #     print(f"player {p.id} victory points", p.victory_points)
+            #     print(f"player {p.id} up devs", p.upDevs)
+            #     print(f"player {p.id} down devs", p.downDevs)
+            #     print("")
         #     # time.sleep(3)
         self.current_player = (self.current_player + 1) % self.num_players
         self.turn_number += 1
