@@ -1,6 +1,7 @@
 import random
 from enum import Enum
 import time
+from collections import defaultdict
 
 class ResourceType(Enum):
     BRICK = "brick"
@@ -27,6 +28,8 @@ class Player:
         self.victory_points = 0
         self.downDevs = {"knight" : 0, "victoryPoint" : 0, "roadBuilding" : 0, "yearOfPlenty" : 0, "monopoly" : 0}
         self.upDevs = {"knight" : 0, "victoryPoint" : 0, "roadBuilding" : 0, "yearOfPlenty" : 0, "monopoly" : 0}
+        self.largest_army = False
+        self.longest_road = False
         # self.buildings = {bt: 0 for bt in BuildingType}
         # self.dev_cards = []
         # self.longest_road = False
@@ -936,6 +939,59 @@ class CatanGame:
         
         return True
     
+    def compute_longest_road(self, player_id):
+        from collections import defaultdict
+
+        max_length = 0
+
+        # Build road graph
+        road_graph = defaultdict(list)
+        for i in range(1, 73):
+            road = self.board[f"r{i}"]
+            if road.controller != player_id:
+                continue
+            s1, s2 = road.adjSettlements
+            if (self.board[f"s{s1}"].hasSettlement and self.board[f"s{s1}"].controller not in [None, player_id]) or \
+            (self.board[f"s{s2}"].hasSettlement and self.board[f"s{s2}"].controller not in [None, player_id]):
+                continue
+            road_graph[s1].append((s2, i))
+            road_graph[s2].append((s1, i))
+
+        def dfs(node, visited_roads):
+            max_len = 0
+            for neighbor, road_id in road_graph[node]:
+                if road_id not in visited_roads:
+                    visited_roads.add(road_id)
+                    length = 1 + dfs(neighbor, visited_roads)
+                    max_len = max(max_len, length)
+                    visited_roads.remove(road_id)
+            return max_len
+
+        for start in road_graph:
+            max_length = max(max_length, dfs(start, set()))
+
+        return max_length
+
+    def update_longest_road(self):
+        longest = 4  # must be at least 5 to get Longest Road
+        holder = None
+        for player in self.players:
+            length = self.compute_longest_road(player.id)
+            if length > longest:
+                longest = length
+                holder = player.id
+
+        for player in self.players:
+            if player.id == holder:
+                if not player.longest_road:
+                    player.victory_points += 2
+                    player.longest_road = True
+            else:
+                if player.longest_road:
+                    player.victory_points -= 2
+                    player.longest_road = False
+
+    
     def can_build_road(self, player_id):
         """Check if a player can build a road."""
         player = self.players[player_id]
@@ -965,6 +1021,7 @@ class CatanGame:
         for adj in self.board[f'r{spot}'].adjSettlements:
             if self.board[f's{adj}'].blocked == False:
                 player.settlementSpots.add(adj)
+        self.update_longest_road()
 
     def can_port(self, player_id):
         player = self.players[player_id]
@@ -989,14 +1046,6 @@ class CatanGame:
         player.resources[choice] -= 4
         player.resources[reception] += 1
 
-        # # Check for longest road
-        # if player.buildings[BuildingType.ROAD] >= 5:
-        #     # Simple longest road implementation
-        #     for p in self.players:
-        #         p.longest_road = False
-        #     player.longest_road = True
-        #     player.victory_points += 2
-        
         return True
     
     def can_buy_dev_card(self, player_id):
@@ -1030,6 +1079,37 @@ class CatanGame:
         
         return True
     
+    def update_largest_army(self):
+        MIN_KNIGHTS = 3
+        top_player = None
+        top_knights = 0
+
+        # Find the player with the most knights played (>= 3)
+        for player in self.players:
+            knights_played = player.upDevs["knight"]
+            if knights_played >= MIN_KNIGHTS:
+                if knights_played > top_knights:
+                    top_knights = knights_played
+                    top_player = player
+                elif knights_played == top_knights:
+                    top_player = None  # Tie — no one gets Largest Army
+
+        # Find current Largest Army holder
+        current_holder = next((p for p in self.players if p.largest_army), None)
+
+        if top_player is not None and top_player != current_holder:
+            # Transfer Largest Army
+            if current_holder:
+                current_holder.largest_army = False
+                current_holder.victory_points -= 2
+            top_player.largest_army = True
+            top_player.victory_points += 2
+
+        elif top_player is None and current_holder:
+            # No valid top player — remove Largest Army
+            current_holder.largest_army = False
+            current_holder.victory_points -= 2
+    
     def can_play_dev_card(self, player_id):
         # Check if a player can buy a development card
         player = self.players[player_id]
@@ -1062,6 +1142,7 @@ class CatanGame:
             stealType = random.choice(nonzero_resources)
             target.resources[stealType] -= 1
             player.resources[stealType] += 1
+            self.update_largest_army()
 
         elif card == "roadBuilding":
             player.upDevs["roadBuilding"] += 1
@@ -1075,7 +1156,7 @@ class CatanGame:
                 return True
             player.resources["lumber"] += 1
             player.resources["brick"] += 1
-            self.build_road(player_id)
+            self.build_road(player_id)           
 
         elif card == "yearOfPlenty":
             player.upDevs["yearOfPlenty"] += 1
@@ -1163,17 +1244,19 @@ class CatanGame:
         
         # Move to next player
         # if self.turn_number % 1 == 0:
-            # printBoard(self.board)
-            # for p in self.players:
-            #     print(f"player {p.id} resources", p.resources)
-            #     print(f"player {p.id} legacy resources", p.legacyResources)
-            #     print(f"player {p.id} road spots", p.roadSpots)
-            #     print(f"player {p.id} settle spots", p.settlementSpots)
-            #     print(f"player {p.id} city spots", p.citySpots)
-            #     print(f"player {p.id} victory points", p.victory_points)
-            #     print(f"player {p.id} up devs", p.upDevs)
-            #     print(f"player {p.id} down devs", p.downDevs)
-            #     print("")
+        #     printBoard(self.board)
+        #     for p in self.players:
+        #         print(f"player {p.id} resources", p.resources)
+        #         print(f"player {p.id} legacy resources", p.legacyResources)
+        #         print(f"player {p.id} road spots", p.roadSpots)
+        #         print(f"player {p.id} settle spots", p.settlementSpots)
+        #         print(f"player {p.id} city spots", p.citySpots)
+        #         print(f"player {p.id} victory points", p.victory_points)
+        #         print(f"player {p.id} up devs", p.upDevs)
+        #         print(f"player {p.id} down devs", p.downDevs)
+        #         print(f"player {p.id} longest road", p.longest_road)
+        #         print(f"player {p.id} largest army", p.largest_army)
+        #         print("")
         #     # time.sleep(3)
         self.current_player = (self.current_player + 1) % self.num_players
         self.turn_number += 1
@@ -1188,7 +1271,6 @@ class CatanGame:
                     "legacyResources": p.legacyResources,
                     "victory_points": p.victory_points,
                     "upDevs": p.upDevs 
-                    # "dev_cards": p.dev_cards,
                     # "longest_road": p.longest_road,
                     # "largest_army": p.largest_army
                 }

@@ -5,7 +5,7 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run Catan AI simulation')
     parser.add_argument('--players', type=int, default=4, help='Number of players (default: 2)')
-    parser.add_argument('--games', type=int, default=100000, help='Number of games to simulate (default: 100)')
+    parser.add_argument('--games', type=int, default=10000, help='Number of games to simulate (default: 100)')
     parser.add_argument('--verbose', action='store_true', help='Print detailed game information')
     args = parser.parse_args()
     
