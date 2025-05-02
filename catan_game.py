@@ -1160,10 +1160,6 @@ class CatanGame:
 
         elif action == "playDev" and self.can_play_dev_card:
             self.play_dev_card(player_id)
-
-        
-        # elif action == "dev_card" and self.can_buy_dev_card(player_id):
-        #     self.buy_dev_card(player_id)
         
         # Move to next player
         # if self.turn_number % 1 == 0:
@@ -1190,7 +1186,8 @@ class CatanGame:
                     "id": p.id,
                     "resources": p.resources,
                     "legacyResources": p.legacyResources,
-                    "victory_points": p.victory_points
+                    "victory_points": p.victory_points,
+                    "upDevs": p.upDevs 
                     # "dev_cards": p.dev_cards,
                     # "longest_road": p.longest_road,
                     # "largest_army": p.largest_army

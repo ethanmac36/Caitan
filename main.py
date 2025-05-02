@@ -5,7 +5,7 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run Catan AI simulation')
     parser.add_argument('--players', type=int, default=4, help='Number of players (default: 2)')
-    parser.add_argument('--games', type=int, default=10000, help='Number of games to simulate (default: 100)')
+    parser.add_argument('--games', type=int, default=100000, help='Number of games to simulate (default: 100)')
     parser.add_argument('--verbose', action='store_true', help='Print detailed game information')
     args = parser.parse_args()
     
@@ -25,6 +25,13 @@ def main():
     print("-" * 50)
     for resource_type, value in avg_values.items():
         print(f"{resource_type.value}: {value:.4f}")
+    # Get and print the average development card values
+    avg_dev_values = simulation.get_dev_card_values()
+    print("\nAverage Development Card Values Across All Agents:")
+    print("-" * 50)
+    for dev_card, value in avg_dev_values.items():
+        print(f"{dev_card}: {value:.4f}")
+
 
 if __name__ == "__main__":
     main() 

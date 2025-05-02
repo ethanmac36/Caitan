@@ -6,6 +6,7 @@ class CatanAI:
     def __init__(self, player_id):
         self.player_id = player_id
         self.resource_correlation = {rt: 0.0 for rt in ResourceType}
+        self.dev_correlation = {"knight" : 0, "victoryPoint" : 0, "roadBuilding" : 0, "yearOfPlenty" : 0, "monopoly" : 0}
         self.games_played = 0
         self.games_won = 0
     
@@ -23,6 +24,10 @@ class CatanAI:
             # Get the player's resources at the end of the game
             player_data = game_state["players"][self.player_id]
             resources = player_data["legacyResources"]
+            devs = player_data["upDevs"]
+
+            for devName, count in devs.items():
+                self.dev_correlation[devName] += count
             
             # Update correlation for each resource
             for resource_name, count in resources.items():
@@ -41,6 +46,14 @@ class CatanAI:
             return {rt: 1.0 for rt in ResourceType}
         
         return {rt: corr / total_correlation for rt, corr in self.resource_correlation.items()}
+    
+    def get_dev_card_values(self):
+        """Get normalized dev card values based on correlation with winning."""
+        total = sum(self.dev_correlation.values())
+        if total == 0:
+            return {k: 1.0 for k in self.dev_correlation}
+        
+        return {k: v / total for k, v in self.dev_correlation.items()}
 
 class CatanSimulation:
     def __init__(self, num_players=2, num_games=100, verbose=False):
@@ -125,6 +138,39 @@ class CatanSimulation:
         final_values = {
             rt: value / total_weighted
             for rt, value in weighted.items()
+        }
+
+        return final_values
+    
+    def get_dev_card_values(self):
+        """Get the average dev card values across all agents, weighted by card frequency."""
+        all_values = [agent.get_dev_card_values() for agent in self.agents]
+
+        # Step 1: Average across agents
+        avg_values = {}
+        for card in self.agents[0].dev_correlation:
+            values = [agent_vals[card] for agent_vals in all_values]
+            avg_values[card] = sum(values) / len(values)
+
+        # Step 2: Weight by dev card frequency
+        DEV_CARD_COUNTS = {
+            "knight": 14,
+            "victoryPoint": 5,
+            "roadBuilding": 2,
+            "yearOfPlenty": 2,
+            "monopoly": 2,
+        }
+
+        weighted = {
+            card: avg_values[card] / DEV_CARD_COUNTS[card]
+            for card in avg_values
+        }
+
+        # Step 3: Re-normalize to sum to 1
+        total_weighted = sum(weighted.values())
+        final_values = {
+            card: value / total_weighted
+            for card, value in weighted.items()
         }
 
         return final_values
