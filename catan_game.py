@@ -19,6 +19,7 @@ class Player:
         self.id = player_id
 
         self.resources = {"brick" : 0, "lumber" : 0, "ore" : 0, "grain" : 0, "wool" : 0}
+        self.legacyResources = {"brick" : 0, "lumber" : 0, "ore" : 0, "grain" : 0, "wool" : 0}
         self.roadSpots = set()
         self.settlementSpots = set()
         self.citySpots = set()
@@ -810,13 +811,13 @@ class CatanGame:
 
                 # Award victory point
                 player.victory_points += 1
-        printBoard(board)
-        for p in self.players:
-            print(f"player {p.id} resources", p.resources)
-            print(f"player {p.id} road spots", p.roadSpots)
-            print(f"player {p.id} settle spots", p.settlementSpots)
-            print(f"player {p.id} city spots", p.citySpots)
-            print("")
+        # printBoard(board)
+        # for p in self.players:
+        #     print(f"player {p.id} resources", p.resources)
+        #     print(f"player {p.id} road spots", p.roadSpots)
+        #     print(f"player {p.id} settle spots", p.settlementSpots)
+        #     print(f"player {p.id} city spots", p.citySpots)
+        #     print("")
         return board
 
     def roll_dice(self):
@@ -838,10 +839,12 @@ class CatanGame:
                         settle = self.board[f's{adj}']
                         if settle.hasSettlement:
                             self.players[settle.controller].resources[tile.resource] += 1
-                            print(f"player {settle.controller} collected 1 {tile.resource}!")
+                            self.players[settle.controller].legacyResources[tile.resource] += 1
+                            #print(f"player {settle.controller} collected 1 {tile.resource}!")
                         elif settle.hasCity:
                             self.players[settle.controller].resources[tile.resource] += 2
-                            print(f"player {settle.controller} collected 2 {tile.resource}!")
+                            self.players[settle.controller].legacyResources[tile.resource] += 2
+                            #print(f"player {settle.controller} collected 2 {tile.resource}!")
     
     def can_build_settlement(self, player_id):
         """Check if a player can build a settlement."""
@@ -1021,7 +1024,7 @@ class CatanGame:
         
         # Roll dice
         roll = self.roll_dice()
-        print(f"{roll} was rolled!")
+        # print(f"{roll} was rolled!")
         self.collect_resources(roll)
         
         # Random actions for this simple AI
@@ -1037,7 +1040,7 @@ class CatanGame:
             actions.append("port")
 
         action = random.choice(actions)
-        print(f"player {player_id} chose to {action}!")
+        # print(f"player {player_id} chose to {action}!")
         
         if action == "settlement" and self.can_build_settlement(player_id):
             # # Find a random empty position
@@ -1069,16 +1072,17 @@ class CatanGame:
         #     self.buy_dev_card(player_id)
         
         # Move to next player
-        if self.turn_number % 1 == 0:
-            printBoard(self.board)
-            for p in self.players:
-                print(f"player {p.id} resources", p.resources)
-                print(f"player {p.id} road spots", p.roadSpots)
-                print(f"player {p.id} settle spots", p.settlementSpots)
-                print(f"player {p.id} city spots", p.citySpots)
-                print(f"player {p.id} victory points", p.victory_points)
-                print("")
-            # time.sleep(3)
+        # if self.turn_number % 1 == 0:
+        #     printBoard(self.board)
+        #     for p in self.players:
+        #         print(f"player {p.id} resources", p.resources)
+        #         print(f"player {p.id} legacy resources", p.legacyResources)
+        #         print(f"player {p.id} road spots", p.roadSpots)
+        #         print(f"player {p.id} settle spots", p.settlementSpots)
+        #         print(f"player {p.id} city spots", p.citySpots)
+        #         print(f"player {p.id} victory points", p.victory_points)
+        #         print("")
+        #     # time.sleep(3)
         self.current_player = (self.current_player + 1) % self.num_players
         self.turn_number += 1
     
@@ -1088,102 +1092,18 @@ class CatanGame:
             "players": [
                 {
                     "id": p.id,
-                    "resources": {rt.value: count for rt, count in p.resources.items()},
-                    "buildings": {bt.value: count for bt, count in p.buildings.items()},
-                    "dev_cards": p.dev_cards,
-                    "victory_points": p.victory_points,
-                    "longest_road": p.longest_road,
-                    "largest_army": p.largest_army
+                    "resources": p.resources,
+                    "legacyResources": p.legacyResources,
+                    "victory_points": p.victory_points
+                    # "dev_cards": p.dev_cards,
+                    # "longest_road": p.longest_road,
+                    # "largest_army": p.largest_army
                 }
                 for p in self.players
             ],
-            "board": {
-                str(pos): {
-                    "resource": space.resource.value,
-                    "number": space.number,
-                    "settlements": space.settlements
-                }
-                for pos, space in self.board.items()
-            },
             "current_player": self.current_player,
             "turn_number": self.turn_number,
             "game_over": self.game_over,
             "winner": self.winner
         }
     
-    # def print_board(self):
-    #     """Print a visual representation of the Catan board."""
-    #     print("\nCatan Board:")
-    #     print("-" * 50)
-        
-    #     # Get the dimensions of the board
-    #     max_row = max(pos[0] for pos in self.board.keys()) + 1
-    #     max_col = max(pos[1] for pos in self.board.keys()) + 1
-        
-    #     # Print the board
-    #     for row in range(max_row):
-    #         # Print the top border of each cell
-    #         for col in range(max_col):
-    #             pos = (row, col)
-    #             if pos in self.board:
-    #                 space = self.board[pos]
-    #                 print(f"+-----", end="")
-    #             else:
-    #                 print(f"      ", end="")
-    #         print("+")
-            
-    #         # Print the resource and number
-    #         for col in range(max_col):
-    #             pos = (row, col)
-    #             if pos in self.board:
-    #                 space = self.board[pos]
-    #                 resource = space.resource.value
-    #                 number = space.number
-    #                 print(f"| {resource[:2]}:{number:2d} ", end="")
-    #             else:
-    #                 print(f"      ", end="")
-    #         print("|")
-            
-    #         # Print the settlements
-    #         for col in range(max_col):
-    #             pos = (row, col)
-    #             if pos in self.board:
-    #                 space = self.board[pos]
-    #                 settlements = space.settlements
-    #                 if settlements:
-    #                     settlement_str = ",".join(str(p) for p in settlements)
-    #                     print(f"| S:{settlement_str:<3} ", end="")
-    #                 else:
-    #                     print(f"|     ", end="")
-    #             else:
-    #                 print(f"      ", end="")
-    #         print("|")
-            
-    #         # Print the bottom border of each cell
-    #         for col in range(max_col):
-    #             pos = (row, col)
-    #             if pos in self.board:
-    #                 print(f"+-----", end="")
-    #             else:
-    #                 print(f"      ", end="")
-    #         print("+")
-        
-    #     # Print player information
-    #     print("\nPlayer Information:")
-    #     for player in self.players:
-    #         print(f"Player {player.id}:")
-    #         print(f"  Victory Points: {player.victory_points}")
-    #         print(f"  Resources: {', '.join(f'{rt.value}: {count}' for rt, count in player.resources.items() if count > 0)}")
-    #         print(f"  Buildings: {', '.join(f'{bt.value}: {count}' for bt, count in player.buildings.items() if count > 0)}")
-    #         print(f"  Dev Cards: {', '.join(player.dev_cards)}")
-    #         if player.longest_road:
-    #             print("  Has Longest Road")
-    #         if player.largest_army:
-    #             print("  Has Largest Army")
-    #         print()
-        
-    #     print(f"Current Player: {self.current_player}")
-    #     print(f"Turn: {self.turn_number}")
-    #     if self.game_over:
-    #         print(f"Game Over! Winner: Player {self.winner}")
-    #     print("-" * 50) 

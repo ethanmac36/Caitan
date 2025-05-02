@@ -22,7 +22,7 @@ class CatanAI:
             
             # Get the player's resources at the end of the game
             player_data = game_state["players"][self.player_id]
-            resources = player_data["resources"]
+            resources = player_data["legacyResources"]
             
             # Update correlation for each resource
             for resource_name, count in resources.items():
@@ -52,6 +52,8 @@ class CatanSimulation:
     def run_simulation(self):
         """Run the simulation for the specified number of games."""
         for game_num in range(self.num_games):
+            if game_num % 1000 == 0:
+                print(f"Finished Game {game_num}")
             # Create a new game
             game = CatanGame(self.num_players)
             
@@ -95,15 +97,34 @@ class CatanSimulation:
             print("-" * 50)
     
     def get_resource_values(self):
-        """Get the average resource values across all agents."""
-        all_values = []
-        for agent in self.agents:
-            all_values.append(agent.get_resource_values())
-        
-        # Calculate average values
+        """Get the average resource values across all agents, adjusted for resource availability."""
+        # Step 1: Gather each agent’s normalized resource values
+        all_values = [agent.get_resource_values() for agent in self.agents]
+
+        # Step 2: Average across agents
         avg_values = {}
         for resource_type in ResourceType:
-            values = [values[resource_type] for values in all_values]
+            values = [agent_vals[resource_type] for agent_vals in all_values]
             avg_values[resource_type] = sum(values) / len(values)
-        
-        return avg_values 
+
+        # Step 3: Normalize by number of tiles (availability)
+        RESOURCE_TILE_COUNTS = {
+            ResourceType.LUMBER: 4,
+            ResourceType.BRICK: 3,
+            ResourceType.WOOL: 4,
+            ResourceType.GRAIN: 4,
+            ResourceType.ORE: 3,
+        }
+
+        # Step 4: Divide by tile count, then re-normalize to sum to 1
+        weighted = {
+            rt: avg_values[rt] / RESOURCE_TILE_COUNTS[rt]
+            for rt in ResourceType
+        }
+        total_weighted = sum(weighted.values())
+        final_values = {
+            rt: value / total_weighted
+            for rt, value in weighted.items()
+        }
+
+        return final_values
